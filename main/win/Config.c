@@ -160,7 +160,7 @@ void LoadConfig()
     Config.UseFPSmodifier = ReadCfgInt("General", "Use Fps Modifier", 1);
     Config.FPSmodifier = ReadCfgInt("General", "Fps Modifier", 100);
     Config.skipFrequency = ReadCfgInt("General", "Skip Frequency", 8);
-    Config.OneFrameDelay = ReadCfgInt("General", "One Frame Delay", 0);
+    one_frame_delay = ReadCfgInt("General", "One Frame Delay", 0);
 
 
     Config.guiDynacore = ReadCfgInt("CPU", "Core", 1);
@@ -328,7 +328,7 @@ void SaveConfig()
     WriteCfgInt("General", "Fps Modifier", Config.FPSmodifier);
     WriteCfgInt("General", "Use Fps Modifier", Config.UseFPSmodifier);
     WriteCfgInt("General", "Skip Frequency", Config.skipFrequency);
-    WriteCfgInt("General", "One Frame Delay", Config.OneFrameDelay);
+    WriteCfgInt("General", "One Frame Delay", one_frame_delay);
 
     //Advanced Vars
     WriteCfgInt("Advanced", "Start Full Screen", Config.StartFullScreen);

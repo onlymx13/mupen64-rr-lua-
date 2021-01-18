@@ -53,6 +53,7 @@ HWND hwndTrack ;
 extern int no_audio_delay;
 extern int no_compiled_jump;
 extern int round_to_zero;
+extern int one_frame_delay;
 
 void WriteCheckBoxValue( HWND hwnd, int resourceID , int value)
 {
@@ -683,7 +684,7 @@ BOOL CALLBACK GeneralCfg(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
          WriteCheckBoxValue( hwnd, IDC_LIMITFPS, Config.limitFps);  
          WriteCheckBoxValue( hwnd, IDC_INI_COMPRESSED, Config.compressedIni);
          WriteCheckBoxValue( hwnd, IDC_SPEEDMODIFIER, Config.UseFPSmodifier  );
-         WriteCheckBoxValue( hwnd, IDC_1F_DELAY, Config.OneFrameDelay);
+         WriteCheckBoxValue( hwnd, IDC_1F_DELAY, one_frame_delay);
          SetDlgItemInt(hwnd, IDC_SKIPFREQ, Config.skipFrequency,0);
                
          CreateToolTip(IDC_SKIPFREQ, hwnd, "0 = Skip all frames, 1 = Show all frames, n = show every nth frame");
@@ -757,7 +758,7 @@ BOOL CALLBACK GeneralCfg(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
                               Config.FPSmodifier = SendMessage( hwndTrack , TBM_GETPOS, 0, 0);
                               Config.UseFPSmodifier = ReadCheckBoxValue( hwnd , IDC_SPEEDMODIFIER );
                               Config.skipFrequency = GetDlgItemInt(hwnd, IDC_SKIPFREQ,0,0);
-                              Config.OneFrameDelay = ReadCheckBoxValue(hwnd, IDC_1F_DELAY);
+                              one_frame_delay = ReadCheckBoxValue(hwnd, IDC_1F_DELAY);
                               if (emu_launched) SetStatusMode( 2 );
                               else SetStatusMode( 0 );
                               InitTimer();
