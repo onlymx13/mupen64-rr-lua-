@@ -145,6 +145,7 @@
 #define IDC_DECREASE_MODIFIER       2263
 #define IDC_RESET_MODIFIER          2264
 #define IDC_SKIPFREQ                2265
+#define IDC_1F_DELAY                2266
 
 
 #define STATE_SAVE                  3000

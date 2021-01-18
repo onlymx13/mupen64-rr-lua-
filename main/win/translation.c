@@ -433,6 +433,7 @@ void TranslateGeneralDialog(HWND hwnd)
     SetItemTranslatedString(hwnd,IDC_SPEEDMODIFIER,"Use Speed Modifier");
     SetItemTranslatedString(hwnd,IDC_SHOWFPS,"Show FPS");
     SetItemTranslatedString(hwnd,IDC_SHOWVIS,"Show VIs");
+    SetItemTranslatedString(hwnd, IDC_1F_DELAY, "1-frame input delay");
     
     SetItemTranslatedString(hwnd,IDC_INTERP,"Interpreter");
     SetItemTranslatedString(hwnd,IDC_RECOMP,"Dynamic Recompiler");
