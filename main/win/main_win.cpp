@@ -62,8 +62,10 @@ extern "C" {
 
 extern void CountryCodeToCountryName(int countrycode,char *countryname);
 
+void StartMovies();
+
 typedef std::string String;
-static bool shouldSave = false;
+bool shouldSave = false;
 
 #if defined(__cplusplus) && !defined(_MSC_VER)
 }
@@ -199,7 +201,7 @@ static BOOL MenuPaused = 0;
 static HWND hStaticHandle;                                 //Handle for static place
 int externalReadScreen;
 
-char TempMessage[800];
+char TempMessage[200];
 int emu_launched; // emu_emulating
 int emu_paused;
 int recording;
@@ -518,7 +520,7 @@ int get_plugin_type()
 char *getPluginNameInner( plugins *p, char *pluginpath, int plugintype)
 {
     if (!p->next) return NULL;
-    if ((plugintype==p->next->type) && (strcasecmp(p->next->file_name, pluginpath)==0) )
+    if ((plugintype==p->next->type) && (_stricmp(p->next->file_name, pluginpath)==0) )
          return p->next->plugin_name;
     else  
          return getPluginNameInner(p->next, pluginpath, plugintype);
@@ -787,10 +789,29 @@ int load_gfx(HMODULE handle_gfx)
    viWidthChanged = (void(__cdecl*)())GetProcAddress(handle_gfx, "ViWidthChanged");
    moveScreen = (void(__cdecl*)(int, int))GetProcAddress(handle_gfx, "MoveScreen");
    CaptureScreen = (void(__cdecl*)(char *Directory))GetProcAddress(handle_gfx, "CaptureScreen");
-   readScreen = (void(__cdecl*)(void **dest, long *width, long *height))GetProcAddress(handle_gfx, "ReadScreen");
-   if(readScreen == NULL) externalReadScreen = 0;
-   else externalReadScreen = 1;
-   
+   if (Config.forceInternalCapture)
+   {
+       readScreen = NULL;
+       externalReadScreen = 0;
+       DllCrtFree = free;
+   }
+   else
+   {
+       readScreen = (void(__cdecl*)(void** dest, long* width, long* height))GetProcAddress(handle_gfx, "ReadScreen");
+       if (readScreen == NULL)
+       {
+           externalReadScreen = 0;
+           DllCrtFree = free;
+       }
+       else
+       {
+           externalReadScreen = 1;
+           DllCrtFree = (void(__cdecl*)(void*))GetProcAddress(handle_gfx, "DllCrtFree");
+           if ( DllCrtFree == NULL) DllCrtFree = free; //attempt to match the crt, it will probably crash, issue only with gliden64
+       }
+
+   }
+
    fBRead = (void(__cdecl*)(DWORD))GetProcAddress(handle_gfx, "FBRead");
    fBWrite = (void(__cdecl*)(DWORD, DWORD))GetProcAddress(handle_gfx, "FBWrite");
    fBGetFrameBufferInfo = (void(__cdecl*)(void*))GetProcAddress(handle_gfx, "FBGetFrameBufferInfo");
@@ -1214,7 +1235,7 @@ BOOL StartRom(char *fullRomPath)
                          //Makes window not resizable                         
                          //ShowWindow(mainHWND, FALSE);
                          winstyle = GetWindowLong( mainHWND, GWL_STYLE );
-                         winstyle = winstyle & ~WS_THICKFRAME;
+                         winstyle = winstyle & ~(WS_THICKFRAME|WS_MAXIMIZEBOX);
                          SetWindowLong(mainHWND, GWL_STYLE, winstyle );
                          SetWindowPos(mainHWND, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED );  //Set on top
                          //ShowWindow(mainHWND, TRUE);
@@ -1253,12 +1274,13 @@ BOOL StartRom(char *fullRomPath)
                          
                          SetStatusMode( 2 );
                          
-                         ShowInfo("Creating emulation thread...");                          
+                         ShowInfo("Creating emulation thread...");    
                          EmuThreadHandle = CreateThread(NULL, 0, ThreadFunc, NULL, 0, &Id);
-                         sprintf(TempMessage, "%s - %s",MUPEN_VERSION, ROM_HEADER->nom);
+                         sprintf(TempMessage, MUPEN_VERSION " - %s", ROM_HEADER->nom);
                          SendMessage(hTool, TB_CHECKBUTTON, EMU_PLAY, 1);
                          SetWindowText(mainHWND,TempMessage);
                          SetStatusTranslatedString(hStatus,0,"Emulation started");
+                         printf("Thread created\n");
                          //SendMessage( hStatus, SB_SETTEXT, 1, (LPARAM)"" ); 
                          return FALSE;
                      }
@@ -2000,7 +2022,7 @@ LRESULT CALLBACK RecordMovieProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM 
                      oifn.lpstrInitialDir = "";
                      oifn.Flags = OFN_PATHMUSTEXIST | OFN_NOREADONLYRETURN;
                      if (GetSaveFileName(&oifn)) {
-						if(strlen(path_buffer) > 0 && (strlen(path_buffer) < 4 || stricmp(path_buffer + strlen(path_buffer) - 4, ".m64") != 0))
+						if(strlen(path_buffer) > 0 && (strlen(path_buffer) < 4 || _stricmp(path_buffer + strlen(path_buffer) - 4, ".m64") != 0))
 							strcat(path_buffer, ".m64");
 						SetDlgItemText(hwnd,IDC_INI_MOVIEFILE,path_buffer);
                      }
@@ -2326,6 +2348,7 @@ static DWORD WINAPI ThreadFunc(LPVOID lpParam)
     SoundThreadHandle = CreateThread(NULL, 0, SoundThread, NULL, 0, &SOUNDTHREADID);
 	ThreadFuncState = TFS_EMULATING;
     ShowInfo("Emu thread: Emulation started....");
+    StartMovies();
     AtResetCallback();
     go();
     ShowInfo("Emu thread: Core stopped...");
@@ -2715,13 +2738,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
 //			if(VCR_isCapturing())
 //				VCR_invalidatedCaptureFrame();
-
+        RedrawWindow(mainHWND, 0, 0, RDW_VALIDATE);
 		return 0;
 
 //		case WM_SETCURSOR:
 //			SetCursor(FALSE);
 //			return 0;
-	    
+    case WM_WINDOWPOSCHANGING:  //allow gfx plugin to set arbitrary size 
+        return 0;
 	case WM_ENTERMENULOOP:       
              AutoPause = emu_paused;
              if (!emu_paused)
@@ -2852,7 +2876,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
                  if (emu_launched) {
                        //closeRom();
                        stop_it();
-                       SleepEx(1000, TRUE); //todo check if can remove
+                       //SleepEx(1000, TRUE); //todo check if can remove
                        CreateThread(NULL, 0, closeRom, (LPVOID)1, 0, &Id);
                        SendMessage(hTool, TB_CHECKBUTTON, EMU_PAUSE, 0);
                        SendMessage(hTool, TB_CHECKBUTTON, EMU_PLAY, 0);
@@ -2941,7 +2965,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
             case ID_RAMSTART:
             {
                 char buf[10];
-                sprintf(buf, "%#08X", rdram);
+                sprintf(buf, "0x%#08p", rdram);
                 MessageBox(0, buf, "Ram start for STROOP config", MB_ICONINFORMATION);
                 break;
             }
@@ -3033,6 +3057,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
                      oifn.lpstrFileTitle = "";
                      oifn.nMaxFileTitle = 0;
                      oifn.lpstrInitialDir = "";
+                     oifn.lpstrDefExt = "st";
                     if (GetSaveFileName (&oifn)) {
                      savestates_select_filename(path_buffer);
                      savestates_job = SAVESTATE;
@@ -3127,7 +3152,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
                                (path_buffer[len-3] != 'a' && path_buffer[len-3] != 'A') ||
                                path_buffer[len-4] != '.')
                                strcat(path_buffer, ".avi");
-                           Sleep(1000);
+                           //Sleep(1000);
                            if (VCR_startCapture( rec_buffer, path_buffer ) < 0)
                            {   
                               MessageBox(NULL, "Couldn't start capturing.", "VCR", MB_OK);
@@ -3270,6 +3295,44 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
 	return TRUE;	
 }
 
+//starts m64 and avi
+//this is called from game thread because otherwise gfx plugin tries to resize window,
+//but main thread waits for game thread to finish loading, and hangs.
+void StartMovies()
+{
+    //-m64, -g
+    HMENU hMenu = GetMenu(mainHWND);
+    printf("------thread done------\n");
+    if (CmdLineParameterExist(CMDLINE_PLAY_M64) && CmdLineParameterExist(CMDLINE_GAME_FILENAME))
+    {
+        char file[MAX_PATH];
+        GetCmdLineParameter(CMDLINE_PLAY_M64, file);
+        //not reading author nor description atm
+        VCR_startPlayback(file, 0, 0);
+        if (CmdLineParameterExist(CMDLINE_CAPTURE_AVI)) {
+            GetCmdLineParameter(CMDLINE_CAPTURE_AVI, file);
+            if (VCR_startCapture(0, file) < 0)
+            {
+                MessageBox(NULL, "Couldn't start capturing.", "VCR", MB_OK);
+                recording = FALSE;
+            }
+            else {
+                SetWindowPos(mainHWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);  //Set on top
+                EnableMenuItem(hMenu, ID_START_CAPTURE, MF_GRAYED);
+                EnableMenuItem(hMenu, ID_END_CAPTURE, MF_ENABLED);
+                if (!externalReadScreen)
+                {
+                    EnableMenuItem(hMenu, FULL_SCREEN, MF_GRAYED);           //Disables fullscreen menu
+                    SendMessage(hTool, TB_ENABLEBUTTON, FULL_SCREEN, FALSE); //Disables fullscreen button
+                }
+                SetStatusTranslatedString(hStatus, 0, "Recording avi...");
+                recording = TRUE;
+            }
+        }
+        resumeEmu(FALSE);
+    }
+}
+
 int WINAPI WinMain(
 	HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -3348,8 +3411,8 @@ int WINAPI WinMain(
 		UpdateWindow(hwnd);
      
 		StartGameByCommandLine();
-		
-		ShowInfo("Mupen64 - Nintendo 64 emulator - Guiless mode");
+
+		ShowInfo(MUPEN_VERSION " - Nintendo 64 emulator - Guiless mode");
         
 		while(GetMessage(&Msg, NULL, 0, 0) > 0)
 		{
@@ -3424,8 +3487,7 @@ int WINAPI WinMain(
 			cmdlineMode = 0;
 		}
 
-		ShowInfo("Mupen64 - Nintendo 64 emulator - re-recording v8 - GUI mode");
-		SetStatusTranslatedString( hStatus, 0, "Mupen64 - Nintendo 64 emulator - re-recording v8" );
+		ShowInfo(MUPEN_VERSION " - Mupen64 - Nintendo 64 emulator - GUI mode");
     
 		while(GetMessage(&Msg, NULL, 0, 0) > 0)
 		{

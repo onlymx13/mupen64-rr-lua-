@@ -494,7 +494,7 @@ SMovieHeader VCR_getHeaderInfo(const char* filename)
 	tempFile = fopen( buf, "rb+" );
 	if (tempFile == 0 && (tempFile = fopen( buf, "rb" )) == 0)
 	{
-        strncat( buf, ".m64", PATH_MAX );
+        strncat( buf, ".m64", 4 );
 	    tempFile = fopen( buf, "rb+" );
     	if (tempFile == 0 && (tempFile = fopen( buf, "rb" )) == 0)
     	{
@@ -937,7 +937,7 @@ VCR_getKeys( int Control, BUTTONS *Keys )
 		extern bool scheduled_restart;
 		if (scheduled_restart)
 		{
-			Keys->Reserved1 = true;
+			Keys->Value = 0xC000; //Reserved 1 and 2
 		}
 
 		*((BUTTONS*)m_inputBufferPtr) = *Keys;
@@ -1001,7 +1001,7 @@ VCR_getKeys( int Control, BUTTONS *Keys )
 			setKeys(Control, *Keys);
 			//printf("setKeys done\n\n");
 
-			if (Keys->Reserved1) //&& !Config.NoReset) no matter if noreset is active, still reset on playback
+			if (Keys->Value==0xC000) //no readable code because 120 star tas can't get this right >:(
 			{
 				continue_vcr_on_restart_mode = true;
 				resetEmu();
@@ -1152,12 +1152,12 @@ VCR_stopRecord()
 
 		strcpy( buf, m_filename );
 		strncat( m_filename, ".st", PATH_MAX );
-		if (unlink( buf ) < 0)
+		if (_unlink( buf ) < 0)
 			fprintf( stderr, "[VCR]: Couldn't remove save state: %s\n", strerror( errno ) );
 
 		strcpy( buf, m_filename );
 		strncat( m_filename, ".m64", PATH_MAX );
-		if (unlink( buf ) < 0)
+		if (_unlink( buf ) < 0)
 			fprintf( stderr, "[VCR]: Couldn't remove recorded file: %s\n", strerror( errno ) );
 
 		retVal = 0;
@@ -1344,7 +1344,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 
 				char str [512], name [512];
 				extern rom_header *ROM_HEADER;
-                if(ROM_HEADER && stricmp(m_header.romNom, (const char*)ROM_HEADER->nom) != 0)
+                if(ROM_HEADER && _stricmp(m_header.romNom, (const char*)ROM_HEADER->nom) != 0)
                 {
 				    sprintf(str, "The movie was recorded with the ROM \"%s\",\nbut you are using the ROM \"%s\",\nso the movie probably won't play properly.\n", m_header.romNom, ROM_HEADER->nom);
 					strcat(warningStr, str);
@@ -1381,7 +1381,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 //					strncpy(name, TempRomSettings.InputPluginName, 64);
 //				else
 					strncpy(name, input_name, 64);
-                if(name[0] && m_header.inputPluginName[0] && stricmp(m_header.inputPluginName, name) != 0)
+                if(name[0] && m_header.inputPluginName[0] && _stricmp(m_header.inputPluginName, name) != 0)
                 {
 				    printf("Warning: The movie was recorded with the input plugin \"%s\",\nbut you are using the input plugin \"%s\",\nso the movie may not play properly.\n", m_header.inputPluginName, name);
 				}
@@ -1389,7 +1389,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 //					strncpy(name, TempRomSettings.GfxPluginName, 64);
 //				else
 					strncpy(name, gfx_name, 64);
-                if(name[0] && m_header.videoPluginName[0] && stricmp(m_header.videoPluginName, name) != 0)
+                if(name[0] && m_header.videoPluginName[0] && _stricmp(m_header.videoPluginName, name) != 0)
                 {
 				    printf("Warning: The movie was recorded with the graphics plugin \"%s\",\nbut you are using the graphics plugin \"%s\",\nso the movie might not play properly.\n", m_header.videoPluginName, name);
 				}
@@ -1397,7 +1397,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 //					strncpy(name, TempRomSettings.SoundPluginName, 64);
 //				else
 					strncpy(name, sound_name, 64);
-                if(name[0] && m_header.soundPluginName[0] && stricmp(m_header.soundPluginName, name) != 0)
+                if(name[0] && m_header.soundPluginName[0] && _stricmp(m_header.soundPluginName, name) != 0)
                 {
 				    printf("Warning: The movie was recorded with the sound plugin \"%s\",\nbut you are using the sound plugin \"%s\",\nso the movie might not play properly.\n", m_header.soundPluginName, name);
 				}
@@ -1405,7 +1405,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 //					strncpy(name, TempRomSettings.RspPluginName, 64);
 //				else
 					strncpy(name, rsp_name, 64);
-                if(name[0] && m_header.rspPluginName[0] && stricmp(m_header.rspPluginName, name) != 0)
+                if(name[0] && m_header.rspPluginName[0] && _stricmp(m_header.rspPluginName, name) != 0)
                 {
 				    printf("Warning: The movie was recorded with the RSP plugin \"%s\",\nbut you are using the RSP plugin \"%s\",\nso the movie probably won't play properly.\n", m_header.rspPluginName, name);
 				}
@@ -1467,7 +1467,7 @@ VCR_startPlayback( const char *filename, const char *authorUTF8, const char *des
 					break;
 			}
 
-	    	strncat( buf, ".st", PATH_MAX );
+	    	strncat( buf, ".st", 4);
 	    	savestates_select_filename( buf );
 	    	savestates_job |= LOADSTATE;
 	    	m_task = StartPlaybackFromSnapshot;
@@ -1666,8 +1666,8 @@ VCR_updateScreen()
 
 	if(externalReadScreen /*|| (!captureFrameValid && lastImage != image)*/)
 	{
-		if(image)
-			free(image);
+		if (image)
+			DllCrtFree(image);
 	}
 /*	else
 	{
@@ -1848,9 +1848,11 @@ VCR_startCapture( const char *recFilename, const char *aviFilename )
 	m_audioFrame = 0.0;
 	void *dest;
 	long width, height;
-	readScreen( &dest, &width, &height );
+	readScreen( &dest, &width, &height ); //if you see this crash, you're using GlideN64, not much can be done atm,
+										  //unknown issue...
 	if (dest)
-		free( dest );
+		DllCrtFree(dest); //if you see this crash, then the graphics plugin has mismatched crt
+						  //and doesn't export DllCrtFree(), you're out of luck
 	VCRComp_startFile( aviFilename, width, height, visByCountrycode(), 1);
 	m_capture = 1;
 	strncpy( AVIFileName, aviFilename, PATH_MAX );
