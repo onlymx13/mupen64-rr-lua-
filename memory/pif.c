@@ -52,6 +52,8 @@
 
 #include "../lua/LuaConsole.h"
 
+int one_frame_delay = 0;
+
 unsigned char eeprom[0x800];
 unsigned char mempack[4][0x8000];
 
@@ -383,7 +385,11 @@ void update_pif_write()
 {
    int i=0, channel=0;
 #ifdef DEBUG_PIF
-   printf("---------- before write ---------\n");
+   if (one_frame_delay) {
+      printf("------------- write -------------\n");
+   } else {
+      printf("---------- before write ---------\n");
+   }
    print_pif();
    printf("---------------------------------\n");
 #endif
@@ -450,10 +456,27 @@ void update_pif_write()
    //PIF_RAMb[0x3F] = 0;
    controllerCommand(-1, NULL);
 #ifdef DEBUG_PIF
-   printf("---------- after write ----------\n");
+   if (!one_frame_delay) {
+      printf("---------- after write ----------\n");
+   }
    print_pif();
-   printf("---------------------------------\n");
+   if (!one_frame_delay) {
+      printf("---------------------------------\n");
+   }
 #endif
+}
+
+void sleep_while_emu_paused()
+{
+	extern int emu_paused;
+	while (emu_paused)
+	{
+		Sleep(10);
+#ifdef LUA_EMUPAUSED_WORK		
+		AtIntervalLuaCallback();
+		GetLuaMessage();
+#endif
+	}
 }
 
 void update_pif_read()
@@ -504,22 +527,19 @@ void update_pif_read()
 					extern void pauseEmu(BOOL quiet);
 					frame_advancing = 0;
 					pauseEmu(TRUE);
-					while (emu_paused)
-					{
-						Sleep(10);
-#ifdef LUA_EMUPAUSED_WORK		
-						AtIntervalLuaCallback();
-						GetLuaMessage();
-#endif
+                    if (!one_frame_delay) {
+						sleep_while_emu_paused();
 					}
 				}
 
-				if (savestates_job & SAVESTATE && stAllowed)
-				{
-					savestates_save();
-					savestates_job &= ~SAVESTATE;
+				if (!one_frame_delay) {
+					if (savestates_job & SAVESTATE && stAllowed)
+					{
+						savestates_save();
+						savestates_job &= ~SAVESTATE;
+					}
 				}
-				else if (savestates_job & LOADSTATE && stAllowed)
+				if (savestates_job & LOADSTATE && stAllowed)
 				{
 					savestates_load();
 					savestates_job &= ~LOADSTATE;
@@ -561,6 +581,7 @@ void update_pif_read()
 	i++;
      }
    readController(-1, NULL);
+
 #ifdef DEBUG_PIF
    printf("---------- after read -----------\n");
    print_pif();

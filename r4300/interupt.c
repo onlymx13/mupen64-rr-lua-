@@ -45,6 +45,7 @@
 #include "exception.h"
 #include "../main/plugin.h"
 #include "../main/guifuncs.h"
+#include "../main/savestates.h"
 #include "../main/vcr.h"
 #include "../lua/LuaConsole.h"
 
@@ -329,6 +330,8 @@ void check_interupt()
      }
 }
 
+extern int one_frame_delay;
+extern void sleep_while_emu_paused();
 void gen_interupt()
 {
    //if (!skip_jump)
@@ -378,7 +381,7 @@ void gen_interupt()
 	break;
 	
       case VI_INT:
-	//printf("VI, count: %x\n",q->count);
+	printf("VI, count: %x\n",q->count);
 #ifdef LUA_EMUPAUSED_WORK
 		  AtIntervalLuaCallback();
 #endif
@@ -533,4 +536,12 @@ void gen_interupt()
 	break;
      }
    exception_general();
+   if (one_frame_delay) {
+		if (savestates_job & SAVESTATE/* && stAllowed*/)
+		{
+			savestates_save();
+			savestates_job &= ~SAVESTATE;
+		}
+		sleep_while_emu_paused();
+   }
 }
